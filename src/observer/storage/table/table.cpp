@@ -175,6 +175,39 @@ RC Table::open(Db *db, const char *meta_file, const char *base_dir)
   return rc;
 }
 
+// ADD: Destroy table
+RC Table::destroy(const char* dir) {
+    RC rc = sync();//刷新所有脏页
+
+    if(rc != RC::SUCCESS) return rc;
+
+    std::string path = table_meta_file(dir, name());
+    if(unlink(path.c_str()) != 0) {
+        LOG_ERROR("Failed to remove meta file=%s, errno=%d", path.c_str(), errno);
+        return RC::GENERIC_ERROR;
+    }
+
+    std::string data_file = std::string(dir) + "/" + name() + TABLE_DATA_SUFFIX;
+    if(unlink(data_file.c_str()) != 0) { // 删除描述表元数据的文件
+        LOG_ERROR("Failed to remove data file=%s, errno=%d", data_file.c_str(), errno);
+        return RC::GENERIC_ERROR;
+    }
+
+    const int index_num = table_meta_.index_num();
+
+    // FIX: 这里和miniob-drop-table-implementation.md中描述的逻辑不一致，`Table`类中，
+    // `indexes_`成员变量已被移除
+    for (int i = 0; i < index_num; i++) {  // 清理所有的索引相关文件数据与索引元数据
+        const IndexMeta* index_meta = table_meta_.index(i);
+        std::string index_file = table_index_file(dir, name(), index_meta->name());
+        if(unlink(index_file.c_str()) != 0) {
+            LOG_ERROR("Failed to remove index file=%s, errno=%d", index_file.c_str(), errno);
+            return RC::GENERIC_ERROR;
+        }
+    }
+    return RC::SUCCESS;
+}
+
 RC Table::insert_record(Record &record)
 {
   return engine_->insert_record(record);

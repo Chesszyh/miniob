@@ -39,7 +39,7 @@ void sql_debug(const char *fmt, ...)
 
   SqlDebug &sql_debug = request->sql_debug();
 
-  const int buffer_size = 4096;
+  const int buffer_size = 4096; // NOTE 使用固定大小的buffer，超长会被截断。你确定4096够吗？
   char     *str         = new char[buffer_size];
 
   va_list ap;

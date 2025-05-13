@@ -68,6 +68,13 @@ public:
   RC open(Db *db, const char *meta_file, const char *base_dir);
 
   /**
+   * @brief 销毁一个表
+   * @param base_dir 表所在的文件夹，表记录数据文件、索引数据文件存放位置
+   * @return 成功返回RC::SUCCESS，失败返回错误码
+   */
+  RC destroy(const char *base_dir);
+
+  /**
    * @brief 根据给定的字段生成一个记录/行
    * @details 通常是由用户传过来的字段，按照schema信息组装成一个record。
    * @param value_num 字段的个数
@@ -98,7 +105,7 @@ public:
 
   /**
    * @brief 可以在页面锁保护的情况下访问记录
-   * @details 当前是在事务中访问记录，为了提供一个“原子性”的访问模式
+   * @details 当前是在事务中访问记录，为了提供一个"原子性"的访问模式
    * @param rid
    * @param visitor
    * @return RC

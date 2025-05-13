@@ -127,6 +127,7 @@ struct DeleteSqlNode
 /**
  * @brief 描述一个update语句
  * @ingroup SQLParser
+ * @todo 检查miniob对update语句的支持情况？“仅支持一个字段”是什么意思？
  */
 struct UpdateSqlNode
 {
@@ -295,6 +296,7 @@ enum SqlCommandFlag
 /**
  * @brief 表示一个SQL语句
  * @ingroup SQLParser
+ * @details 上述所有数据结构的实例化
  */
 class ParsedSqlNode
 {
@@ -324,6 +326,7 @@ public:
 /**
  * @brief 表示语法解析后的数据
  * @ingroup SQLParser
+ * @todo viusalization? 解析后的数据结构？
  */
 class ParsedSqlResult
 {
