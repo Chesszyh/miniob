@@ -2,14 +2,22 @@
     // 使用 IntelliSense 了解相关属性。 
     // 悬停以查看现有属性的描述。
     // 欲了解更多信息，请访问: https://go.microsoft.com/fwlink/?linkid=830387
+    // 
+    // 如何设置F11不要跳进系统函数内部？
+    // 可以通过在 setupCommands 中添加如下命令，告诉 gdb 跳过标准库和系统头文件的函数：
+    // - "set step-mode on" 让 gdb 只在用户代码中单步
+    // - "skip -gfi *" 跳过所有没有调试信息的函数（可选）
+    // - "skip file /usr/include/*" 跳过系统头文件（可选）
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "(gdb) 启动",
+            "name": "(gdb) CLI模式启动",
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/bin/observer",
-            "args": ["-f", "../../etc/observer.ini"],
+            // 通过添加 --cli 参数，observer 将以CLI模式启动，避免SQL调试时的网络通信
+            "args": ["-f", "../../etc/observer.ini", "--cli"],
+            // 在CLI模型下调试(终端输入SQL，不走network)
             "stopAtEntry": false,
             "cwd": "${fileDirname}",
             "environment": [],
@@ -24,6 +32,21 @@
                 {
                     "description":  "将反汇编风格设置为 Intel",
                     "text": "-gdb-set disassembly-flavor intel",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "只在用户代码中单步（避免F11进入系统函数）",
+                    "text": "set step-mode on",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "跳过所有没有调试信息的函数（可选）",
+                    "text": "skip -gfi *",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "跳过系统头文件（可选）",
+                    "text": "skip file /usr/include/*",
                     "ignoreFailures": true
                 }
             ],

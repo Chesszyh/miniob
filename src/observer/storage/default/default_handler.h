@@ -78,7 +78,7 @@ public:
 
   /**
    * @brief 删除指定数据库下的表
-   * @details 当前没有实现。需要删除表在内存中和磁盘中的所有资源，包括表的索引文件。
+   * @details 需要删除表在内存中和磁盘中的所有资源，包括表的索引文件。
    * @param dbname 数据库名称
    * @param relation_name 表名
    */

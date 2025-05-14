@@ -20,6 +20,7 @@ See the Mulan PSL v2 for more details. */
 #include "common/value.h"
 #include "common/lang/utility.h"
 
+
 class Expression;
 
 /**
@@ -127,7 +128,7 @@ struct DeleteSqlNode
 /**
  * @brief 描述一个update语句
  * @ingroup SQLParser
- * @todo 检查miniob对update语句的支持情况？“仅支持一个字段”是什么意思？
+ * @todo 检查miniob对update语句的支持情况？"仅支持一个字段"是什么意思？
  */
 struct UpdateSqlNode
 {
@@ -283,7 +284,7 @@ enum SqlCommandFlag
   SCF_SYNC,
   SCF_SHOW_TABLES,
   SCF_DESC_TABLE,
-  SCF_BEGIN,  ///< 事务开始语句，可以在这里扩展只读事务
+  SCF_BEGIN, ///< 事务开始语句，可以在这里扩展只读事务
   SCF_COMMIT,
   SCF_CLOG_SYNC,
   SCF_ROLLBACK,
@@ -291,7 +292,7 @@ enum SqlCommandFlag
   SCF_HELP,
   SCF_EXIT,
   SCF_EXPLAIN,
-  SCF_SET_VARIABLE,  ///< 设置变量
+  SCF_SET_VARIABLE, ///< 设置变量
 };
 /**
  * @brief 表示一个SQL语句
@@ -336,5 +337,5 @@ public:
   vector<unique_ptr<ParsedSqlNode>> &sql_nodes() { return sql_nodes_; }
 
 private:
-  vector<unique_ptr<ParsedSqlNode>> sql_nodes_;  ///< 这里记录SQL命令。虽然看起来支持多个，但是当前仅处理一个
+  vector<unique_ptr<ParsedSqlNode>> sql_nodes_; ///< 这里记录SQL命令。虽然看起来支持多个，但是当前仅处理一个
 };

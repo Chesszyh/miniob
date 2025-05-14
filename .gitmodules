@@ -10,3 +10,6 @@
 [submodule "deps/3rd/benchmark"]
 	path = deps/3rd/benchmark
 	url = https://github.com/google/benchmark
+[submodule "docs/lectures-on-dbms-implementation"]
+	path = docs/lectures-on-dbms-implementation
+	url = https://github.com/OceanBase-Partner/lectures-on-dbms-implementation

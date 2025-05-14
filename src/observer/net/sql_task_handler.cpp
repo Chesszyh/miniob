@@ -58,6 +58,7 @@ RC SqlTaskHandler::handle_event(Communicator *communicator)
 RC SqlTaskHandler::handle_sql(SQLStageEvent *sql_event)
 {
   RC rc = query_cache_stage_.handle_request(sql_event);
+  // FIX 为什么直接return success？
   if (OB_FAIL(rc)) {
     LOG_TRACE("failed to do query cache. rc=%s", strrc(rc));
     return rc;
