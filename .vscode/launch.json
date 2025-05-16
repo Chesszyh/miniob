@@ -16,8 +16,7 @@
             "request": "launch",
             "program": "${workspaceFolder}/build/bin/observer",
             // 通过添加 --cli 参数，observer 将以CLI模式启动，避免SQL调试时的网络通信
-            "args": ["-f", "../../etc/observer.ini", "--cli"],
-            // 在CLI模型下调试(终端输入SQL，不走network)
+            "args": ["-f", "../../etc/observer.ini"],
             "stopAtEntry": false,
             "cwd": "${fileDirname}",
             "environment": [],
