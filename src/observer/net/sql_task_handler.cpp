@@ -41,7 +41,7 @@ RC SqlTaskHandler::handle_event(Communicator *communicator)
   }
 
   bool need_disconnect = false;
-
+  // 此步将SQL结果返回到客户端的终端
   rc = communicator->write_result(event, need_disconnect);
   LOG_INFO("write result return %s", strrc(rc));
   event->session()->set_current_request(nullptr);

@@ -25,7 +25,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/stmt/help_stmt.h"
 #include "sql/stmt/insert_stmt.h"
 #include "sql/stmt/load_data_stmt.h"
-#include "sql/stmt/select_stmt.h"   
+#include "sql/stmt/select_stmt.h"
 #include "sql/stmt/set_variable_stmt.h"
 #include "sql/stmt/show_tables_stmt.h"
 #include "sql/stmt/trx_begin_stmt.h"
@@ -77,7 +77,7 @@ RC Stmt::create_stmt(Db *db, ParsedSqlNode &sql_node, Stmt *&stmt)
       return DescTableStmt::create(db, sql_node.desc_table, stmt);
     }
 
-    case SCF_ANALYZE_TABLE: { 
+    case SCF_ANALYZE_TABLE: {
       return AnalyzeTableStmt::create(db, sql_node.analyze_table, stmt);
     }
 
@@ -114,10 +114,10 @@ RC Stmt::create_stmt(Db *db, ParsedSqlNode &sql_node, Stmt *&stmt)
       return CalcStmt::create(sql_node.calc, stmt);
     }
 
-      // ADD: Drop table
+    // ADD: Drop table
     case SCF_DROP_TABLE: {
-        return DropTableStmt::create(db, sql_node.drop_table, stmt);
-        }
+      return DropTableStmt::create(db, sql_node.drop_table, stmt);
+    }
 
     default: {
       LOG_INFO("Command::type %d doesn't need to create statement.", sql_node.flag);

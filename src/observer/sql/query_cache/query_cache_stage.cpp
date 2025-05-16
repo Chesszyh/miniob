@@ -25,6 +25,5 @@ using namespace common;
 
 RC QueryCacheStage::handle_request(SQLStageEvent *sql_event)
 {
-  // FIX 为什么直接return success？
   return RC::SUCCESS;
 }
