@@ -25,6 +25,7 @@ class FilterStmt;
 class InsertStmt;
 class DeleteStmt;
 class ExplainStmt;
+class DropTableStmt;
 class LogicalOperator;
 
 class LogicalPlanGenerator
@@ -42,6 +43,9 @@ private:
   RC create_plan(InsertStmt *insert_stmt, unique_ptr<LogicalOperator> &logical_operator);
   RC create_plan(DeleteStmt *delete_stmt, unique_ptr<LogicalOperator> &logical_operator);
   RC create_plan(ExplainStmt *explain_stmt, unique_ptr<LogicalOperator> &logical_operator);
+
+  // ADD
+  RC create_plan(DropTableStmt *drop_stmt, unique_ptr<LogicalOperator> &logical_operator);
 
   RC create_group_by_plan(SelectStmt *select_stmt, unique_ptr<LogicalOperator> &logical_operator);
 

@@ -34,6 +34,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/stmt/insert_stmt.h"
 #include "sql/stmt/select_stmt.h"
 #include "sql/stmt/stmt.h"
+#include "sql/stmt/drop_table_stmt.h"   // ADD
 
 #include "sql/expr/expression_iterator.h"
 
@@ -73,6 +74,14 @@ RC LogicalPlanGenerator::create(Stmt *stmt, unique_ptr<LogicalOperator> &logical
 
       rc = create_plan(explain_stmt, logical_operator);
     } break;
+
+    case StmtType::DROP_TABLE: {
+      // ADD
+      DropTableStmt *drop_table_stmt = static_cast<DropTableStmt *>(stmt);
+
+      rc = create_plan(drop_table_stmt, logical_operator);
+    } break;
+      
     default: {
       rc = RC::UNIMPLEMENTED;
     }
@@ -276,6 +285,16 @@ RC LogicalPlanGenerator::create_plan(ExplainStmt *explain_stmt, unique_ptr<Logic
   logical_operator = unique_ptr<LogicalOperator>(new ExplainLogicalOperator);
   logical_operator->add_child(std::move(child_oper));
   return rc;
+}
+
+// ADD: Drop table plan
+RC LogicalPlanGenerator::create_plan(DropTableStmt *drop_table_stmt, unique_ptr<LogicalOperator> &logical_operator)
+{
+    // Create a logical plan for dropping a table
+    // For now, we don't need a complex logical plan since this is a DDL operation
+    // that will be handled by the storage engine directly
+    return RC::UNIMPLEMENTED;   
+  
 }
 
 RC LogicalPlanGenerator::create_group_by_plan(SelectStmt *select_stmt, unique_ptr<LogicalOperator> &logical_operator)

@@ -92,10 +92,6 @@ git push origin main
 
 数据库启动后，会在`one_thread_per_connection_thread_handler.cpp`的81行进行无限循环，等待用户输入sql命令。
 
-### Create Table
-
-
-
 ### Drop Table
 
 - 实现删除表(drop table)，清除表相关的资源。
@@ -116,39 +112,42 @@ git push origin main
         4. 返回`RC::SUCCESS`；
     3. `resolve_stage_`：调用`observer/sql/resolve_stage.cpp`的`handle_request`函数，进行SQL语义解析，`resolve_stage.cpp`需要调用`observer/sql/stmt/stmt.cpp`的`create_stmt`函数；
         1. `create_stmt`函数：命中`SCF_DROP_TABLE`case，调用我新建的`observer/sql/stmt/drop_table_stmt.cpp`的`create`函数；
-    4. `optimize_stage_`：
-    5. `execute_stage_`：
+    4. `optimize_stage_`：调用`observer/sql/optimizer/optimize_stage.cpp`的`handle_request`函数，该函数内调用`create_logical_plan`函数，创建逻辑计划；
+        1. `create_logical_plan`函数，调用`LogicalPlanGenerator`类的`create`方法，`DROP TABLE`会命中`StmtType::DROP_TABLE` case，创建一个`DropTablePlan`对象；
+        2. 可能返回`RC::SUCCESS`，也可能返回`RC::UNIMPLEMENT`，表示当前操作不支持/未实现，但`sql_task_handler.cpp`进行检查时，会认为`rc != RC::UNIMPLEMENTED && rc != RC::SUCCESS`时都算成功；
+        3. `DROP TABLE`不算复杂操作，如果为了架构一致性和可扩展性，可以创建具体的逻辑计划。这次作业实现我选择直接在`LogicalPlanGenerator.create`里返回`RC::UNIMPLEMENTED`，然后交给`execute_stage_`处理。
+        
+    5. `execute_stage_`：调用`observer/sql/executor/execute_stage.cpp`的`handle_request`函数，进行SQL执行；
+        1. `handle_request`：SQL命令可能有两种处理方式：
+            1. 物理算子：通常是针对 `SELECT、JOIN` 等需要优化的复杂查询操作，包含了执行查询的详细步骤（如表扫描、索引扫描、连接算法等），其路径应用了查询优化器的**优化结果**
+                1. 物理算子会生成**执行计划**，走`ExecuteStage`类的`handle_request_with_physical_operator`函数；
+            2. 逻辑算子：通常是针对 `CREATE、INSERT、UPDATE、DELETE` 等非DQL语句，走`CommandExecutor`类的`execuate`函数直接执行即可。
+        2. `DROP TABLE`命令属于逻辑算子，走我新建的case`StmtType::DROP_TABLE`，调用新建的`observer/sql/executor/drop_table_executor.cpp`的`DropTableExecutor`类的`execute`函数，执行具体的删除表操作。参考：`src/observer/sql/executor/drop_table_executor.cpp`实现
+        
 4. 执行完以上5步后，返回`handle_event`函数，调用`net/plain_communicator.cpp`的`write_result`写入结果，并检查是否需要关闭连接，需要则返回`RC::INTERNAL`，否则返回`RC::SUCCESS`；
 5. `handle_event`函数返回，重新进入`one_thread_per_connection_thread_handler.cpp`的循环，等待下次输入。
-
-#### 实现
-
-？
-
-1. `drop_table_stmt.cpp`：实现`DropTableStmt`类，包含表名`test`的成员变量。
-2. `drop_table_stmt.cpp`：实现`DropTableStmt::create`函数，返回一个新的`DropTableStmt`对象。
-3. `drop_table_stmt.cpp`：实现`DropTableStmt::execute`函数，执行删除表的操作，包括：
-   1. 从元数据中删除表信息。
-   2. 删除表相关的磁盘文件。
-   3. 清理内存中的索引等数据。
 
 ### Select Table
 
 当前系统支持单表查询的功能，需要在此基础上支持多张表的笛卡尔积关联查询。
 
-需要实现
+**仅支持**：`select * from t1;`
 
-select * from t1,t2; 
+**需要实现**：
 
-select t1.,t2. from t1,t2;
+`select * from t1,t2; `
 
-select t1.id,t2.id from t1,t2;
+`select t1.,t2. from t1,t2;`
+
+`select t1.id,t2.id from t1,t2;`
 
 查询可能会带条件。查询结果展示格式参考单表查询。注意查询条件中的“不等”比较，除了"<>"还要考虑"!=" 比较符号。每一列必须带有表信息，比如:
 
+```plaintext
 t1.id | t2.id
 
 1 | 1
+```
 
 ### Date
 
