@@ -128,5 +128,6 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, unordered_map<st
   filter_unit->set_comp(comp);
 
   // 检查两个类型是否能够比较
+  // stmt阶段应该是只需要
   return rc;
 }

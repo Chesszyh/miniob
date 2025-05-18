@@ -1,13 +1,81 @@
 # Miniob进阶
 
+[miniob](https://hub.docker.com/r/oceanbase/miniob) 是 OceanBase 与华中科技大学联合开发的、面向零基础数据库内核知识同学的一门数据库实现入门教程实践工具，设计目标是让不熟悉数据库设计和实现的同学能够快速的了解与深入学习数据库内核。
+
+## 资源
+
 - Cursor 导入 Vscode 配置：https://github.com/maomao1996/daily-notes/issues/50
 - Miniob提交：https://open.oceanbase.com/train/detail/3?questionId=200001
     - 注意，提测会测试所有题目
 - [Using C++ and WSL in VS Code](https://code.visualstudio.com/docs/cpp/config-wsl)
+- [Miniob架构文档](https://oceanbase.github.io/miniob/design/miniob-architecture/#_3)
 
-注意，我的Miniob-Docker是部署在AWS上的，因为国内的Docker没法连到Github。
+## 初次安装
 
-## 启动开发
+### Run Miniob on Docker
+
+注意，我的Miniob-Docker是部署在AWS上的，因为国内的Docker没法连到Github。如果能给国内Docker配好代理，或者手动传入项目文件夹，倒也可以正常使用。
+
+```shell
+# 1. Docker下载官方miniob镜像
+# --privileged: 获取root权限
+# -v: 挂载本地目录到容器内(共享目录，修改实时同步)
+docker run -d --privileged --name=miniob oceanbase/miniob
+
+# 2. 进入容器内部，编译安装
+docker exec -it miniob bash
+git clone https://github.com/oceanbase/miniob.git
+cd miniob
+bash build.sh --make -j4 
+
+# 3. 编译后，进入build目录，运行
+cd build
+# 以后修改数据库后，执行：
+# make clean
+# make -j32
+./bin/observer -s miniob.sock -f ../etc/observer.ini & # 在后台启动服务
+# kill -9 $(pgrep observer) # 关闭服务
+
+# 4. 连接数据库
+./bin/obclient -s miniob.sock
+```
+
+### Build Miniob from Source
+
+参考https://oceanbase.github.io/miniob/how_to_build/#2。
+
+```shell
+git clone https://github.com/oceanbase/miniob/
+cd miniob
+bash build.sh init # 136.92s user 29.97s system 34% cpu 8:09.70 total
+bash build.sh -j32 # 编译，32核WSL2-Ubuntu原生文件夹，需要351s：351.20s user 39.44s system 76% cpu 8:32.50 total
+```
+
+## 项目依赖
+
+### stdarg.h
+
+- `stdarg.h`：C标准库，可变参数列表的处理，类似python的`*args`和`**kwargs`。
+
+    *   相关的宏和类型有：
+        *   `va_list`: 用于声明一个指向参数列表的变量。
+        *   `va_start`: 初始化 `va_list` 变量，使其指向第一个可变参数。
+        *   `vsnprintf`: 用于根据格式字符串和参数列表将格式化的输出写入字符数组，并且它是安全的，可以防止缓冲区溢出。
+        *   `va_end`: 清理 `va_list` 变量。
+
+一个使用示例：
+
+```c
+const int buffer_size = 4096;
+char     *str         = new char[buffer_size];
+
+va_list ap;
+va_start(ap, fmt);  // fmt格式串由调用者提供，格式检查于外部完成 (?)
+vsnprintf(str, buffer_size, fmt, ap);   // 将fmt格式化的字符串写入str中
+va_end(ap);
+```
+
+## 开发调试(非首次安装)
 
 当前开发流程：
 
@@ -55,6 +123,23 @@ create table t2 (id int, score int);
 insert into t2 values (1, 90), (2, 85), (4, 95);
 ```
 
+**表结构**：
+
+```sql
+select * from t1, t2;
+-- 结果：
+-- t1.id | t1.name | t2.id | t2.score
+-- 1 | Alice | 1 | 90
+-- 2 | Bob | 1 | 90
+-- 3 | Charlie | 1 | 90
+-- 1 | Alice | 2 | 85
+-- 2 | Bob | 2 | 85
+-- 3 | Charlie | 2 | 85
+-- 1 | Alice | 4 | 95
+-- 2 | Bob | 4 | 95
+-- 3 | Charlie | 4 | 95
+```
+
 **测试**：
 
 ```sql
@@ -71,23 +156,30 @@ select t1.*, t2.* from t1, t2;
 
 -- 指定具体列
 select t1.id, t1.name, t2.score from t1, t2;
--- 只显示指定的3列，此测试已通过
+-- 只显示指定的3列，此测试已通过但仅显示首行
+-- id | name | score
+-- 1 | Alice | 90
 
 -- 带条件的多表查询
 select t1.id, t1.name, t2.score from t1, t2 where t1.id = t2.id;
--- 只返回id匹配的行(相当于内连接)，此测试已通过
+-- 只返回id匹配的行(相当于内连接)，此测试已通过但仅显示首行
+-- id | name | score
+-- 1 | Alice | 90
 
 -- 不等条件查询(使用!=)，未通过
 select t1.id, t1.name, t2.id, t2.score from t1, t2 where t1.id != t2.id;
+-- id | name | id | score
 
 -- 不等条件查询(使用<>)，未通过
 select t1.id, t1.name, t2.id, t2.score from t1, t2 where t1.id <> t2.id;
+-- id | name | id | score
 
 -- 复杂条件查询，未通过
 select t1.id, t2.score from t1, t2 where t1.id < t2.id and t2.score > 90;
+-- id | score
 ```
 
-## 调试
+## 功能分析
 
 数据库启动后，会在`one_thread_per_connection_thread_handler.cpp`的81行进行无限循环，等待用户输入sql命令。
 
@@ -145,23 +237,33 @@ select t1.id, t2.score from t1, t2 where t1.id < t2.id and t2.score > 90;
 
 #### 执行流程
 
-流程基本与`drop table`相同，主要区别在于：
+流程基本与`drop table`相同，主要区别在于`resolve_stage_`和`optimize_stage_`的处理：
 
-1. `observer/sql/stmt/select_stmt.cpp`的`create`静态方法：将解析树节点(SelectSqlNode)转换为语句对象(SelectStmt)。`SELECT`的语法比`DROP`复杂很多，所以处理流程也更复杂。
+1. `resolve_stage_`：
+    1. `observer/sql/stmt/select_stmt.cpp`的`create`静态方法：将解析树节点(SelectSqlNode)转换为语句对象(SelectStmt)。`SELECT`的语法比`DROP`复杂很多，所以处理流程也更复杂。
 
-`SelectStmt`类负责：
+    `SelectStmt`类负责：
 
-- 组织FROM子句中的表
-- 收集查询需要的字段表达式
-- 处理GROUP BY子句的分组表达式
-- 管理WHERE子句的过滤条件
-- 构建最终的`SelectStmt`对象
+    - 组织FROM子句中的表
+    - 收集SELECT子句中的字段表达式
+        - 调用`observer/sql/parser/expression_binder.cpp`的`bind_expression`方法，
+    - 处理GROUP BY子句的分组表达式(暂未考虑，因为题目没要求)
+    - 管理WHERE子句的过滤条件
+        - 调用`observer/sql/stmt/filter_stmt.cpp`的`create`方法
+        - `create`方法先创建一个`FilterStmt`对象，再调用同一文件的`create_filter_unit`
+        - `create_filter_unit`判断`WHERE`子句的`comp`是否在`parse_defs.h`的`CompType`枚举类中；若是，则继续判断`comp`两侧是否为`attr`；若是，则需要调用`get_table_and_field`(获取表名和字段名)，否则(为立即数)不需要
+    - 构建最终的`SelectStmt`对象
 
-2. `optimize_stage_`：调用`observer/sql/optimizer/optimize_stage.cpp`的`handle_request`函数，创建完逻辑计划之后，会继续调用`gererate_physical_plan`生成物理计划。当前官方main分支的代码在此处有许多TODO，包括`unify the RBO and CBO`、`better way to generate general child`、`error handle`等。
+2. `optimize_stage_`：调用`observer/sql/optimizer/optimize_stage.cpp`的`handle_request`函数；当前官方main分支的代码在此函数中有许多TODO，包括`unify the RBO and CBO`、`better way to generate general child`、`error handle`等。
+    1. 该函数先利用`LogicalPlanGenerator::create`创建逻辑计划，`create`命中case`StmtType::SELECT`，调用`LogicalPlanGenerator::create_plan`模板中的`select`；
+    2. 创建完逻辑计划后，`handle_request`会继续调用`rewrite`(对逻辑操作符树进行重写优化)等
+    3. 接着，调用`generate_physical_plan`生成物理计划。
 
 3. `execute_stage_`：与`DROP TABLE`不同，`SELECT`命令属于物理算子，走`ExecuteStage`类的`handle_request_with_physical_operator`函数。该函数会创建一个`PhysicalOperator`对象，负责执行查询操作。
 
 ## 杂项问题
+
+### Fork Merge
 
 我一周前clone的原生仓库，今天我先fork并连接到自己的分支，再在本地原生仓库修改，现在原仓库可能有一些改动，包含在了我的fork里。因此，直接`git pull`会失败。
 
@@ -218,3 +320,68 @@ git push origin main
 - 经常从上游仓库同步代码
 - 在开发新功能时创建新的分支
 - 完成功能后再合并到主分支
+
+### 相同依赖、不同版本代码的编译
+
+**结论**：**相同依赖、不同版本代码的编译，如果脚本是将依赖安装到系统路径，则不需要重复执行`init`，否则若前后版本依赖出现变动，新项目的`init`可能会导致原项目编译失败。**
+
+因此，要么将依赖安装到项目目录下，要么在系统路径下做好版本管理，比如`/opt/miniob_deps/libevent/2.1.12/`(但这样CMake的配置会更加麻烦)。
+
+---
+
+项目根目录下`build.sh`脚本主要负责两件事：初始化依赖环境和编译 MiniOB 项目本身。
+
+**脚本主要功能细分：**
+
+1.  **`init` (初始化依赖):**
+    *   执行 `git submodule update --init` 来获取或更新项目所依赖的第三方库（子模块），例如 libevent、googletest、google benchmark 和 jsoncpp。
+    *   对于每一个第三方依赖库：
+        *   进入该库的源代码目录。
+        *   创建一个 `build` 子目录。
+        *   运行 CMake (`${CMAKE_COMMAND}`) 来配置该库的编译选项。在这个 CMake 配置阶段，你会看到类似 `-- Performing Test check_c_compiler_flag__Wall` 的输出。
+            * **注意**：**这些是 CMake 在配置构建环境时进行的检查，而不是在运行项目的单元测试。**对于依赖库，脚本已经通过传递`-DBENCHMARK_ENABLE_TESTING=OFF` 和 `-DJSONCPP_WITH_TESTS=OFF`等参数来禁止编译它们各自的测试套件。
+        *   运行 `make` 来编译该库。
+        *   运行 `make install` 将编译好的库文件和头文件安装到系统（通常是像 lib、include 这样的标准路径，具体取决于各个库的 CMake 配置）。
+
+2.  **`clean` (清理):**
+    *   删除项目根目录下所有名为 `build_debug` 或 `build_release` 的构建目录。
+
+3.  **构建 MiniOB 项目 (例如执行 `.build.sh debug` 或 `.build.sh release`):**
+    *   `prepare_build_dir`: 根据指定的构建类型（默认为 `debug`），创建相应的构建目录（如 `build_debug`），并在项目根目录创建一个名为 `build` 的软链接指向这个实际的构建目录。
+    *   `do_build`: 在上一步创建的构建目录中运行 CMake，用以配置 MiniOB 主项目的编译选项。
+    *   `try_make`: 如果你在命令中指定了 `--make`，则会接着在构建目录中执行 `make` 命令来编译 MiniOB 项目。
+    *   通常，`release`的编译速度会比`debug`快，因为`debug`模式会包含更多的调试信息和检查。
+
+
+---
+
+TODO Merge以下NOTE
+
+### SELECT语句
+
+- 默认表：`Tables_in_SYS`;
+    - `select * from Tables_in_SYS;` --> FAILURE 为什么
+
+## 代码解读
+
+### 语法解析层
+
+- `observer/sql/parser/parse_defs.h`：定义了SQL语句的结构体，包括`CreateTableSqlNode`、`DropTableSqlNode`等。
+     首先引入自定义的`string`, `vector`, `memory`等头文件(包含自定义函数：C++库函数的封装)，然后引入`value.h`，应该是数据库的值类型定义。
+- `observer/sql/stmt/create_table_stmt.h`：`DropTableStmt`等处理SQL语句。
+
+### 日志、调试输出
+
+- `observer/event/sql_debug.h`：
+
+    - `sql_debug`函数逻辑：
+        - 会话：局部线程/全局管理机制
+        - 如果有会话，再从会话中获取当前线程的`SessionEvent`，否则返回
+        - 准备缓冲区(固定4096)并格式化字符串
+
+## Idea
+
+1. 正则表达式学习、如何正确解析sql语句？
+2. 数据库一般都有`help`命令，以后用之前先查看一下该数据库的方言，省得浪费时间
+3. 类似python `kanren`的逻辑式编程：`select * from table where`后条件的解析
+4. SQL对语法错误的提示，为什么如此不清晰？(Syntax error near token `xxx`, 我怎么知道具体哪错了？)

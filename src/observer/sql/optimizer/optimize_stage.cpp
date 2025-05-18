@@ -104,6 +104,12 @@ RC OptimizeStage::generate_physical_plan(
   return rc;
 }
 
+/**
+    @brief 反复应用重写规则，直到无法进一步优化逻辑计划
+    @param logical_operator 逻辑计划
+    @details 循环内调用内部的rewriter_对象执行实际的重写操作；
+            只要有变化发生就继续循环优化，确保应用所有可能的优化机会
+**/
 RC OptimizeStage::rewrite(unique_ptr<LogicalOperator> &logical_operator)
 {
   RC rc = RC::SUCCESS;

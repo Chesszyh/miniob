@@ -43,6 +43,12 @@ static void wildcard_fields(Table *table, vector<unique_ptr<Expression>> &expres
   }
 }
 
+/**
+    @brief 表达式绑定的主入口函数
+    @param expr 待绑定的表达式
+    @param bound_expressions 绑定后的表达式列表
+    @details 根据表达式类型将绑定任务分发到相应的专门处理函数
+**/
 RC ExpressionBinder::bind_expression(unique_ptr<Expression> &expr, vector<unique_ptr<Expression>> &bound_expressions)
 {
   if (nullptr == expr) {
@@ -50,11 +56,11 @@ RC ExpressionBinder::bind_expression(unique_ptr<Expression> &expr, vector<unique
   }
 
   switch (expr->type()) {
-    case ExprType::STAR: {
+    case ExprType::STAR: {  // * and table.*
       return bind_star_expression(expr, bound_expressions);
     } break;
 
-    case ExprType::UNBOUND_FIELD: {
+    case ExprType::UNBOUND_FIELD: { // table.field, 处理未绑定的字段引用
       return bind_unbound_field_expression(expr, bound_expressions);
     } break;
 
@@ -66,11 +72,11 @@ RC ExpressionBinder::bind_expression(unique_ptr<Expression> &expr, vector<unique
       return bind_field_expression(expr, bound_expressions);
     } break;
 
-    case ExprType::VALUE: {
+    case ExprType::VALUE: { // 常量表达式
       return bind_value_expression(expr, bound_expressions);
     } break;
 
-    case ExprType::CAST: {
+    case ExprType::CAST: {  
       return bind_cast_expression(expr, bound_expressions);
     } break;
 
@@ -78,7 +84,7 @@ RC ExpressionBinder::bind_expression(unique_ptr<Expression> &expr, vector<unique
       return bind_comparison_expression(expr, bound_expressions);
     } break;
 
-    case ExprType::CONJUNCTION: {
+    case ExprType::CONJUNCTION: { // 逻辑与或逻辑或表达式  
       return bind_conjunction_expression(expr, bound_expressions);
     } break;
 

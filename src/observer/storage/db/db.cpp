@@ -244,6 +244,7 @@ void Db::all_tables(vector<string> &table_names) const
 }
 
 // ADD: Drop Table
+// 调试时似乎从来没有进到过这个文件，所以下面的修改估计也是没用的
 RC Db::drop_table(const char* table_name)
 {
     auto it = opened_tables_.find(table_name);
