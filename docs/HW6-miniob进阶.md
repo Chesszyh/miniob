@@ -112,71 +112,58 @@ select * from test_drop;    -- 应输出FAILURE
 
 ### Select Table
 
+**注意**：**miniob原生不支持insert的逗号分隔符，只能逐行插入。**最开始调试时，我以为是select的内部实现有问题，导致执行`insert into t1 values (1, 'Alice'), (2, 'Bob'), (3, 'Charlie');`之后，`select * from t1;`只能显示`Alice`一行数据。调了半天，也检查了`.l`和`.y`文件，才发现是`insert`语句的解析问题！
+
+发现这一点后重新测试，`select`需要自行实现的只有`table.*`的解析。
+
 ```sql
 -- Select Table
 -- 创建第一张表
 create table t1 (id int, name char(10));
-insert into t1 values (1, 'Alice'), (2, 'Bob'), (3, 'Charlie');
+-- 插入数据
+-- 注意，miniob原生不支持insert的逗号分隔符，只能逐行插入
+/* insert into t1 values (1, 'Alice'), (2, 'Bob'), (3, 'Charlie'); */
+insert into t1 values (1, 'Alice');
+insert into t1 values (2, 'Bob');
+insert into t1 values (3, 'Charlie');
 
 -- 创建第二张表
 create table t2 (id int, score int);
-insert into t2 values (1, 90), (2, 85), (4, 95);
-```
-
-**表结构**：
-
-```sql
-select * from t1, t2;
--- 结果：
--- t1.id | t1.name | t2.id | t2.score
--- 1 | Alice | 1 | 90
--- 2 | Bob | 1 | 90
--- 3 | Charlie | 1 | 90
--- 1 | Alice | 2 | 85
--- 2 | Bob | 2 | 85
--- 3 | Charlie | 2 | 85
--- 1 | Alice | 4 | 95
--- 2 | Bob | 4 | 95
--- 3 | Charlie | 4 | 95
+/* insert into t2 values (1, 90), (2, 85), (4, 95); */
+insert into t2 values (1, 90);
+insert into t2 values (2, 85);
+insert into t2 values (4, 95);
 ```
 
 **测试**：
 
 ```sql
 -- 多表查询测试
--- 全表笛卡尔积，未通过
+
+-- 全表笛卡尔积
 select * from t1, t2;
 -- 结果应该有9行(3×3)，每行包含t1和t2的所有列
--- 实际仅1行：1 | Alice | 1 | 90
 
--- 指定表的所有列，未通过
+-- 指定表的所有列，未通过(不支持.*语法)
 select t1.*, t2.* from t1, t2;
 -- 结果应与上一查询相同
 -- 实际：Failed to parse sql
 
 -- 指定具体列
 select t1.id, t1.name, t2.score from t1, t2;
--- 只显示指定的3列，此测试已通过但仅显示首行
--- id | name | score
--- 1 | Alice | 90
 
 -- 带条件的多表查询
 select t1.id, t1.name, t2.score from t1, t2 where t1.id = t2.id;
--- 只返回id匹配的行(相当于内连接)，此测试已通过但仅显示首行
--- id | name | score
--- 1 | Alice | 90
+-- 只返回id匹配的行(相当于内连接)
 
--- 不等条件查询(使用!=)，未通过
+-- 不等条件查询(使用!=)
 select t1.id, t1.name, t2.id, t2.score from t1, t2 where t1.id != t2.id;
--- id | name | id | score
 
--- 不等条件查询(使用<>)，未通过
+-- 不等条件查询(使用<>)，与上面相同
 select t1.id, t1.name, t2.id, t2.score from t1, t2 where t1.id <> t2.id;
--- id | name | id | score
 
--- 复杂条件查询，未通过
+-- 复杂条件查询
 select t1.id, t2.score from t1, t2 where t1.id < t2.id and t2.score > 90;
--- id | score
 ```
 
 ## 功能分析
@@ -261,7 +248,52 @@ select t1.id, t2.score from t1, t2 where t1.id < t2.id and t2.score > 90;
 
 3. `execute_stage_`：与`DROP TABLE`不同，`SELECT`命令属于物理算子，走`ExecuteStage`类的`handle_request_with_physical_operator`函数。该函数会创建一个`PhysicalOperator`对象，负责执行查询操作。
 
+#### 功能实现
+
+我开始使用的`commit 309fec7`基本已经实现了`SELECT`的功能，只差一个`select t1.*, t2.* from t1, t2;`的解析，需要修改`yacc_sql.y`语法解析文件。该文件大概565行左右有一处注释`your code here`，在下面添加：
+
+```cpp
+    // your code here
+    | ID DOT '*' { // 处理 SELECT table.*
+    // $1 是 ID (表名), $3 是 '*'
+    // StarExpr 构造函数可以接受表名
+    $$ = new StarExpr($1); // $1 是 cstring (char*)，StarExpr 构造函数可能需要 const char*
+    // $$->set_name(std::string($1) + ".*"); // 可选：设置一个描述性的名称
+    // yylval->cstring 在 .l 文件中是通过 strdup 分配的，这里 $1 被 StarExpr 内部复制或使用后，
+    // 如果 StarExpr 不接管 $1 的内存，需要考虑是否要释放 $1。
+    // 但由于 yacc 会自动管理 %union 中 cstring 的内存（通过yyextra机制），通常不需要手动释放。
+    // 确认 StarExpr 如何处理传入的表名（是复制还是仅保存指针）：
+    // 根据 `expression.h`，StarExpr 类内部使用 `private: std::string table_name_`，所以构造函数 
+    // StarExpr(const char *table_name) : table_name_(table_name) 会进行复制，是内存安全的。
+    }
+```
+
+即可。
+
+#### `select * from Tables_in_SYS`返回`FAILURE`的原因
+
+当前`select * from Tables_in_SYS;`会返回`FAILURE`，调试发现在`handle_sql`函数中的`resolve_stage_`返回`RC::SCHEMA_TABLE_NOT_EXIST`；继续追溯，发现在`select_stmt.cpp`的`create`函数中，处理`FROM`子句时调用的`observer/storage/db/db.cpp:Table *Db::find_table(const char *table_name) const`返回了nullptr，即没有找到`Tables_in_SYS`表。
+
+该函数具体实现：
+
+```cpp
+Table *Db::find_table(const char *table_name) const
+{
+  unordered_map<string, Table *>::const_iterator iter = opened_tables_.find(table_name);
+  if (iter != opened_tables_.end()) {
+    return iter->second;
+  }
+  return nullptr;
+}
+```
+
+哈希查找区分大小写，找不到可能是表不存在、表名大小写有误或者有前后缀/空格等问题，但最有可能的应该是`Tables_in_SYS`表没有加载到`opened_tables_`集合(因为系统表一般不应对外开放)。经内存检查发现确实如此：![alt text](image.png)
+
 ## 杂项问题
+
+### Database duration
+
+每次重启调试后，会丢失所有table里的数据，但表结构不会丢失。这是Miniob的“特性”吗？以后开发可能要注意一下五个阶段结束后的数据清理环节。
 
 ### Fork Merge
 
@@ -351,37 +383,3 @@ git push origin main
     *   `do_build`: 在上一步创建的构建目录中运行 CMake，用以配置 MiniOB 主项目的编译选项。
     *   `try_make`: 如果你在命令中指定了 `--make`，则会接着在构建目录中执行 `make` 命令来编译 MiniOB 项目。
     *   通常，`release`的编译速度会比`debug`快，因为`debug`模式会包含更多的调试信息和检查。
-
-
----
-
-TODO Merge以下NOTE
-
-### SELECT语句
-
-- 默认表：`Tables_in_SYS`;
-    - `select * from Tables_in_SYS;` --> FAILURE 为什么
-
-## 代码解读
-
-### 语法解析层
-
-- `observer/sql/parser/parse_defs.h`：定义了SQL语句的结构体，包括`CreateTableSqlNode`、`DropTableSqlNode`等。
-     首先引入自定义的`string`, `vector`, `memory`等头文件(包含自定义函数：C++库函数的封装)，然后引入`value.h`，应该是数据库的值类型定义。
-- `observer/sql/stmt/create_table_stmt.h`：`DropTableStmt`等处理SQL语句。
-
-### 日志、调试输出
-
-- `observer/event/sql_debug.h`：
-
-    - `sql_debug`函数逻辑：
-        - 会话：局部线程/全局管理机制
-        - 如果有会话，再从会话中获取当前线程的`SessionEvent`，否则返回
-        - 准备缓冲区(固定4096)并格式化字符串
-
-## Idea
-
-1. 正则表达式学习、如何正确解析sql语句？
-2. 数据库一般都有`help`命令，以后用之前先查看一下该数据库的方言，省得浪费时间
-3. 类似python `kanren`的逻辑式编程：`select * from table where`后条件的解析
-4. SQL对语法错误的提示，为什么如此不清晰？(Syntax error near token `xxx`, 我怎么知道具体哪错了？)

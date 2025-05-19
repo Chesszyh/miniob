@@ -535,7 +535,7 @@ expression:
     | expression '-' expression {
       $$ = create_arithmetic_expression(ArithmeticExpr::Type::SUB, $1, $3, sql_string, &@$);
     }
-    | expression '*' expression {
+    | expression '*' expression {   // 注意，这个是乘法，而不是通配符
       $$ = create_arithmetic_expression(ArithmeticExpr::Type::MUL, $1, $3, sql_string, &@$);
     }
     | expression '/' expression {
@@ -553,16 +553,28 @@ expression:
       $$->set_name(token_name(sql_string, &@$));
       delete $1;
     }
-    | rel_attr {
+    | rel_attr {    // table.attr or attr
       RelAttrSqlNode *node = $1;
       $$ = new UnboundFieldExpr(node->relation_name, node->attribute_name);
       $$->set_name(token_name(sql_string, &@$));
       delete $1;
     }
-    | '*' {
+    | '*' { // 通配符, SELECT * 
       $$ = new StarExpr();
     }
     // your code here
+    | ID DOT '*' { // 处理 SELECT table.*
+    // $1 是 ID (表名), $3 是 '*'
+    // StarExpr 构造函数可以接受表名
+    $$ = new StarExpr($1); // $1 是 cstring (char*)，StarExpr 构造函数可能需要 const char*
+    // $$->set_name(std::string($1) + ".*"); // 可选：设置一个描述性的名称
+    // yylval->cstring 在 .l 文件中是通过 strdup 分配的，这里 $1 被 StarExpr 内部复制或使用后，
+    // 如果 StarExpr 不接管 $1 的内存，需要考虑是否要释放 $1。
+    // 但由于 yacc 会自动管理 %union 中 cstring 的内存（通过yyextra机制），通常不需要手动释放。
+    // 确认 StarExpr 如何处理传入的表名（是复制还是仅保存指针）：
+    // 根据 `expression.h`，StarExpr 类内部使用 `private: std::string table_name_`，所以构造函数 
+    // StarExpr(const char *table_name) : table_name_(table_name) 会进行复制，是内存安全的。
+    }
     ;
 
 rel_attr:
